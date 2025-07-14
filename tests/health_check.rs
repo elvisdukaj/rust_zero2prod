@@ -1,4 +1,3 @@
-use std::fmt::format;
 use std::net::TcpListener;
 use zero2prod;
 
