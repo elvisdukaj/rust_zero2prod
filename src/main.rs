@@ -1,3 +1,4 @@
+use sqlx::PgPool;
 use std::net::TcpListener;
 use zero2prod::configuration::get_configuration;
 use zero2prod::run;
@@ -11,5 +12,9 @@ async fn main() -> Result<(), std::io::Error> {
     );
 
     let listener = TcpListener::bind(url);
-    run(listener?)?.await
+
+    let pool = PgPool::connect(&configuration.database.connection_string())
+        .await
+        .expect("Failed to connect to the database");
+    run(listener?, pool)?.await
 }
