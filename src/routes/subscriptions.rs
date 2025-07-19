@@ -10,8 +10,12 @@ pub struct FormData {
     email: String,
 }
 
-pub async fn subscribe(form: web::Form<FormData>, pool: web::Data<PgPool>) -> impl Responder {
-    let query = sqlx::query!(
+#[tracing::instrument(name = "Saving a new subscriber into the database", skip(form, pool))]
+async fn insert_subscriber(
+    form: web::Form<FormData>,
+    pool: web::Data<PgPool>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at)
         VALUES ($1, $2, $3, $4)
@@ -22,9 +26,24 @@ pub async fn subscribe(form: web::Form<FormData>, pool: web::Data<PgPool>) -> im
         Utc::now(),
     )
     .execute(pool.get_ref())
-    .await;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query {:?}", e);
+        e
+    })?;
 
-    match query {
+    Ok(())
+}
+
+#[tracing::instrument(
+    name = "Adding a new subscriber",
+    skip(form, pool),
+    fields(
+        request_id = %Uuid::new_v4(),
+        subscriber_email = %form.email, subscriber_name = %form.name)
+)]
+pub async fn subscribe(form: web::Form<FormData>, pool: web::Data<PgPool>) -> impl Responder {
+    match insert_subscriber(form, pool).await {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(_) => HttpResponse::InternalServerError().finish(),
     }

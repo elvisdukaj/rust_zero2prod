@@ -1,16 +1,33 @@
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
+use std::sync::LazyLock;
 use uuid::Uuid;
 use zero2prod;
 use zero2prod::DatabaseSettings;
 use zero2prod::configuration::get_configuration;
+use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
 struct TestApp {
     address: String,
     db_pool: PgPool,
 }
 
+static TRACING: LazyLock<()> = LazyLock::new(|| {
+    let default_filter_level = "info".to_string();
+    let subsciber_name = "zero2prod".to_string();
+
+    if std::env::var("TEST_LOG").is_ok() {
+        let subscriber = get_subscriber(subsciber_name, default_filter_level, std::io::stdout);
+        init_subscriber(subscriber);
+    } else {
+        let subscriber = get_subscriber(subsciber_name, default_filter_level, std::io::sink);
+        init_subscriber(subscriber);
+    }
+});
+
 async fn spawn_app() -> TestApp {
+    LazyLock::force(&TRACING);
+
     let listener = TcpListener::bind("127.0.0.1:0").expect("Unable to bind random port");
     let address = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
 
@@ -67,6 +84,7 @@ async fn test_health_check() {
         .await
         .expect("Failed to execute request.");
 
+    // Assert
     assert!(response.status().is_success());
     assert_eq!(Some(0), response.content_length());
 }
@@ -87,6 +105,7 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
         .await
         .expect("Failed to execute request.");
 
+    // Assert
     assert!(response.status().is_success());
     assert_eq!(Some(0), response.content_length());
 
@@ -95,7 +114,7 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
         .await
         .expect("Failed to fetch saved subscription.");
 
-    // assert_eq!(saved.email, "ursula_le_guin@gmail.com");
+    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
     assert_eq!(saved.name, "le guin");
 }
 
