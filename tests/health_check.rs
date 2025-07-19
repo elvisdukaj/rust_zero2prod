@@ -45,7 +45,7 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
     let maintenance_database = DatabaseSettings {
         database_name: "postgres".to_string(),
         username: "postgres".to_string(),
-        password: "password".to_string(),
+        password: secrecy::SecretString::from("password"),
         ..config.clone()
     };
 
